@@ -1,0 +1,28 @@
+from drf_spectacular.utils import extend_schema
+from rest_framework import status
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from .serializers import RegisterSerializer, UserSerializer
+
+
+class RegisterView(APIView):
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        summary="Register a new user",
+        request=RegisterSerializer,
+        responses={201: UserSerializer},
+    )
+    def post(self, request):
+        serializer = RegisterSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
+
+
+class MeView(APIView):
+    @extend_schema(summary="Get current authenticated user", responses={200: UserSerializer})
+    def get(self, request):
+        return Response(UserSerializer(request.user).data)
