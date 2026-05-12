@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { listVenues, pollAISearch, startAISearch } from "../api/venues";
+import { createVenue, listVenues, pollAISearch, startAISearch } from "../api/venues";
 import FilterBar from "../components/FilterBar";
 import LoadingSpinner from "../components/LoadingSpinner";
 import VenueCard from "../components/VenueCard";
@@ -274,9 +274,158 @@ function BrowsePanel() {
   );
 }
 
+// ─── Create venue panel ───────────────────────────────────────────────────────
+const AMENITY_OPTIONS = ["wifi", "parking", "catering", "av", "breakout_rooms", "reception_desk", "outdoor_space", "natural_light"];
+
+const EMPTY_FORM = { name: "", city: "", capacity: "", price_per_day: "", description: "", amenities: [] };
+
+function CreateVenuePanel({ onCreated }) {
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(false);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm((f) => ({ ...f, [name]: value }));
+  };
+
+  const toggleAmenity = (amenity) => {
+    setForm((f) => ({
+      ...f,
+      amenities: f.amenities.includes(amenity)
+        ? f.amenities.filter((a) => a !== amenity)
+        : [...f.amenities, amenity],
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    setSuccess(false);
+    try {
+      await createVenue({
+        ...form,
+        capacity: parseInt(form.capacity, 10),
+        price_per_day: parseFloat(form.price_per_day),
+      });
+      setSuccess(true);
+      setForm(EMPTY_FORM);
+      onCreated?.();
+    } catch (err) {
+      const data = err.response?.data;
+      if (data && typeof data === "object") {
+        const msgs = Object.entries(data)
+          .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`)
+          .join(" | ");
+        setError(msgs);
+      } else {
+        setError("Failed to create venue.");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const inputCls = "w-full rounded-xl bg-gray-800 border border-gray-700 text-gray-100 placeholder-gray-600 text-sm py-2.5 px-4 focus:ring-2 focus:ring-sky-500 focus:border-sky-500";
+  const labelCls = "block text-xs font-semibold text-gray-400 mb-1";
+
+  return (
+    <div className="bg-gradient-to-br from-emerald-500/8 to-teal-500/8 rounded-2xl border border-emerald-500/20 p-6">
+      <div className="flex items-start gap-3 mb-6">
+        <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-emerald-950/50">
+          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-white">Add New Venue</h2>
+          <p className="text-sm text-gray-500 mt-0.5">Create a venue listing. It will appear in browse and AI search immediately.</p>
+        </div>
+      </div>
+
+      {success && (
+        <div className="flex items-center gap-2 bg-emerald-500/15 border border-emerald-500/25 rounded-xl p-4 mb-5 text-emerald-400 text-sm font-medium">
+          <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          Venue created successfully.
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-5 text-sm text-red-400">{error}</div>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className={labelCls}>Venue Name *</label>
+            <input required name="name" value={form.name} onChange={handleChange} placeholder="e.g. The Rooftop Suite" className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>City *</label>
+            <input required name="city" value={form.city} onChange={handleChange} placeholder="e.g. London" className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>Capacity (max attendees) *</label>
+            <input required type="number" min="1" name="capacity" value={form.capacity} onChange={handleChange} placeholder="e.g. 100" className={inputCls} />
+          </div>
+          <div>
+            <label className={labelCls}>Price Per Day (£) *</label>
+            <input required type="number" min="0" step="0.01" name="price_per_day" value={form.price_per_day} onChange={handleChange} placeholder="e.g. 2500.00" className={inputCls} />
+          </div>
+        </div>
+
+        <div>
+          <label className={labelCls}>Description *</label>
+          <textarea required rows={3} name="description" value={form.description} onChange={handleChange} placeholder="Describe the venue — style, location highlights, what makes it stand out..." className={`${inputCls} resize-none`} />
+        </div>
+
+        <div>
+          <label className={labelCls}>Amenities</label>
+          <div className="flex flex-wrap gap-2 mt-1">
+            {AMENITY_OPTIONS.map((a) => {
+              const active = form.amenities.includes(a);
+              return (
+                <button
+                  key={a}
+                  type="button"
+                  onClick={() => toggleAmenity(a)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                    active
+                      ? "bg-emerald-600 border-emerald-500 text-white"
+                      : "bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-200"
+                  }`}
+                >
+                  {a.replace("_", " ")}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          disabled={submitting}
+          className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 text-white text-sm font-semibold rounded-xl hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-emerald-950/40"
+        >
+          {submitting ? (
+            <><LoadingSpinner size="sm" /><span>Creating…</span></>
+          ) : (
+            <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg><span>Create Venue</span></>
+          )}
+        </button>
+      </form>
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function VenueListPage() {
   const [activeTab, setActiveTab] = useState("browse");
+  const [browseKey, setBrowseKey] = useState(0);
 
   const tabs = [
     {
@@ -295,6 +444,15 @@ export default function VenueListPage() {
       icon: (
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+        </svg>
+      ),
+    },
+    {
+      id: "create",
+      label: "Add Venue",
+      icon: (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
         </svg>
       ),
     },
@@ -332,7 +490,16 @@ export default function VenueListPage() {
       </div>
 
       {/* Tab content */}
-      {activeTab === "browse" ? <BrowsePanel /> : <AISearchPanel />}
+      {activeTab === "browse" && <BrowsePanel key={browseKey} />}
+      {activeTab === "ai" && <AISearchPanel />}
+      {activeTab === "create" && (
+        <CreateVenuePanel
+          onCreated={() => {
+            setBrowseKey((k) => k + 1);
+            setActiveTab("browse");
+          }}
+        />
+      )}
     </div>
   );
 }

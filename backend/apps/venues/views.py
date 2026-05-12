@@ -2,7 +2,7 @@ import uuid
 
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema, extend_schema_view
 from rest_framework import status, viewsets
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -24,13 +24,15 @@ from .tasks import get_job_state, run_ai_venue_search, set_job_state
         ],
     ),
     retrieve=extend_schema(summary="Get venue detail"),
+    create=extend_schema(summary="Create a venue (authenticated)"),
 )
-class VenueViewSet(viewsets.ReadOnlyModelViewSet):
+class VenueViewSet(viewsets.ModelViewSet):
     queryset = Venue.objects.all()
     serializer_class = VenueSerializer
     filterset_class = VenueFilter
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticatedOrReadOnly]
     ordering_fields = ["price_per_day", "capacity", "created_at"]
+    http_method_names = ["get", "post", "head", "options"]
 
 
 class AISearchStartView(APIView):
